@@ -36,7 +36,9 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean mStopReceive = false;
 
+    private int clickCount;
 
+    private long preClickTime;
 
     // Used to load the 'native-lib' library on application startup.
     static {
@@ -76,6 +78,7 @@ public class MainActivity extends AppCompatActivity {
                     @Override
                     public void run() {
                         try {
+                            Log.d("receive", "send thread begin......");
                             while(!mStopSend) {
                                 Log.d("receive", "begin sending awesome broadcast ");
                                 //准备待发送数据
@@ -93,6 +96,7 @@ public class MainActivity extends AppCompatActivity {
 
                                 Thread.sleep(1000);
                             }
+                            Log.d("receive", "send thread exit......");
                         }catch (Exception e) {
                             e.printStackTrace();
                         }
@@ -109,10 +113,13 @@ public class MainActivity extends AppCompatActivity {
                 Snackbar.make(view, "starting receving broadcast balabalabala~", Snackbar.LENGTH_LONG)
                         .setAction("Action", null).show();
 
+                mStopReceive = false;
+
                 new Thread(new Runnable() {
                     @Override
                     public void run() {
                         try {
+                            Log.d("receive", "receive thread begin......");
                             while(!mStopReceive) {
                                 Log.d("receive", "begin receive awesome broadcast ");
                                 //开始收包
@@ -138,9 +145,9 @@ public class MainActivity extends AppCompatActivity {
                                     if((byte)0xA3 == bytes[0]) {
                                         Log.d("receive", "received awesome a3");
                                     }
-
                                 }
                             }
+                            Log.d("receive", "receive thread exit......");
                         }catch (Exception e) {
                             e.printStackTrace();
                         }
@@ -152,6 +159,35 @@ public class MainActivity extends AppCompatActivity {
         // Example of a call to a native method
         TextView tv = (TextView) findViewById(R.id.sample_text);
         tv.setText(stringFromJNI());
+
+        tv.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if (clickCount == 0) {
+                    preClickTime = System.currentTimeMillis();
+                    clickCount++;
+                } else if (clickCount == 1) {
+                    long curTime = System.currentTimeMillis();
+                    if((curTime - preClickTime) < 500){
+                        onTextViewDoubleClick(view);
+                    }
+                    clickCount = 0;
+                    preClickTime = 0;
+                }else{
+                    Log.e("receive", "clickCount = " + clickCount);
+                    clickCount = 0;
+                    preClickTime = 0;
+                }
+            }
+        });
+    }
+
+    private void onTextViewDoubleClick(View view) {
+        Snackbar.make(view, "stop send and receive........", Snackbar.LENGTH_LONG)
+                .setAction("Action", null).show();
+
+        mStopReceive = true;
+        mStopSend = true;
     }
 
     private void initData() {
@@ -160,7 +196,7 @@ public class MainActivity extends AppCompatActivity {
                 mReceiveSocket = new DatagramSocket(null);
 
                 mReceiveSocket.setReuseAddress(true);
-                mReceiveSocket.bind(new InetSocketAddress(BROADCAST_PORT));
+                mReceiveSocket.bind(new InetSocketAddress(BROADCAST_PORT));//接收端充当server角色，所以要将"监听"的端口开放给发送端
                 mReceiveSocket.setBroadcast(true);
                 mReceiveSocket.setSoTimeout(0);
 
@@ -168,7 +204,7 @@ public class MainActivity extends AppCompatActivity {
             }
 
             if(null == mSendSocket) {
-                mSendSocket = new DatagramSocket(5051);
+                mSendSocket = new DatagramSocket(5051);//其实指定发送端的端口是没有意义的，这里加上是为了方便看日志啦
                 mSendSocket.setReuseAddress(true);
                 mSendSocket.setBroadcast(true);
                 mSendSocket.setSoTimeout(1);
@@ -180,6 +216,7 @@ public class MainActivity extends AppCompatActivity {
             e.printStackTrace();
         }
 
+        clickCount = 0;
     }
 
     @Override
