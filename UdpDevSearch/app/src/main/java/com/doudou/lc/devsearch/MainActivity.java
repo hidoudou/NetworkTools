@@ -1,6 +1,7 @@
 package com.doudou.lc.devsearch;
 
 import android.os.Bundle;
+import android.provider.ContactsContract;
 import android.util.Log;
 import android.widget.TextView;
 import android.support.design.widget.FloatingActionButton;
@@ -22,6 +23,10 @@ import java.nio.ByteBuffer;
 
 public class MainActivity extends AppCompatActivity {
 
+    private Thread mReceiveThred = null;
+
+    private Thread mSendThred = null;
+
     private DatagramSocket mSendSocket = null;
 
     private DatagramSocket mReceiveSocket = null;
@@ -34,7 +39,7 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean mStopSend = true;
 
-    private boolean mStopReceive = false;
+    private boolean mStopReceive = true;
 
     private int clickCount;
 
@@ -68,13 +73,22 @@ public class MainActivity extends AppCompatActivity {
         fab_send.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                String msg;
+                if(!mStopSend) {
+                    msg = "send task already setup,lalalalalalalala~";
+                }else {
+                    msg = "start sending broadcast,lalalalalalalala~";
+                }
 
-                Snackbar.make(view, "start sending broadcast,lalalalalala~", Snackbar.LENGTH_LONG)
+                Snackbar.make(view, msg, Snackbar.LENGTH_LONG)
                         .setAction("Action", null).show();
+                if(!mStopSend) {
+                    return ;
+                }
 
                 mStopSend = false;
 
-                new Thread(new Runnable() {
+                mSendThred = new Thread(new Runnable() {
                     @Override
                     public void run() {
                         try {
@@ -101,7 +115,8 @@ public class MainActivity extends AppCompatActivity {
                             e.printStackTrace();
                         }
                     }
-                }).start();
+                });
+                mSendThred.start();
             }
         });
 
@@ -109,13 +124,23 @@ public class MainActivity extends AppCompatActivity {
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                String msg;
+                if(!mStopReceive) {
+                    msg = "receive task already setup,lalalalalalalala~";
+                }else {
+                    msg = "start receiving broadcast,lalalalalalalala~";
+                }
 
-                Snackbar.make(view, "starting receving broadcast balabalabala~", Snackbar.LENGTH_LONG)
+                Snackbar.make(view, msg, Snackbar.LENGTH_LONG)
                         .setAction("Action", null).show();
+
+                if(!mStopReceive) {
+                    return ;
+                }
 
                 mStopReceive = false;
 
-                new Thread(new Runnable() {
+                mReceiveThred = new Thread(new Runnable() {
                     @Override
                     public void run() {
                         try {
@@ -127,6 +152,12 @@ public class MainActivity extends AppCompatActivity {
                                 final DatagramPacket receiveBuffer = new DatagramPacket(result, result.length);
                                 receiveBuffer.setData(result);
                                 mReceiveSocket.receive(receiveBuffer);
+
+                                if(mStopReceive) {
+                                    //在解除阻塞后停止处理接收到的报文
+                                    Log.d("receive", "receive stop signal, receive thread exit......");
+                                    return ;
+                                }
 
                                 if(receiveBuffer.getLength() > 0) {
                                     String src = receiveBuffer.getAddress().getHostAddress() + ":" + receiveBuffer.getPort();
@@ -152,7 +183,8 @@ public class MainActivity extends AppCompatActivity {
                             e.printStackTrace();
                         }
                     }
-                }).start();
+                });
+                mReceiveThred.start();
             }
         });
 
@@ -187,6 +219,34 @@ public class MainActivity extends AppCompatActivity {
                 .setAction("Action", null).show();
 
         mStopReceive = true;
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                //为了让之前开辟的接收线程退出，自激一个广播包
+                try {
+                    DatagramSocket tmp = new DatagramSocket(5052);
+                    tmp.setBroadcast(true);
+                    tmp.setSoTimeout(1);
+
+                    //准备待发送数据
+                    byte[] bytesToSend = new byte[32];
+                    bytesToSend[0] = (byte)0xA3;
+                    bytesToSend[1] = 1;
+                    bytesToSend[16] = 2;
+
+                    final DatagramPacket packetToSend = new DatagramPacket(bytesToSend, bytesToSend.length, InetAddress.getByName("255.255.255.255"), BROADCAST_PORT);
+
+                    tmp.send(packetToSend);
+                    tmp.close();
+                    Log.d("receive", "stop receive signal send over");
+                }catch (Exception e) {
+                    Log.d("receive", "send stop receive signal, got exception");
+
+                    e.printStackTrace();
+                }
+            }
+        }).start();
+
         mStopSend = true;
     }
 
