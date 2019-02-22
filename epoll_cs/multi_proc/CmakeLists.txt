@@ -1,0 +1,5 @@
+cmake_mimimum_required (VERSION 2.8)
+
+project (epoll-http-svr)
+
+add_executable(epoll-http-svr httpd.c epollserver_multi_proc.c)
